@@ -36,13 +36,13 @@ from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def get_args():
     parser = argparse.ArgumentParser('MAE visualization reconstruction script', add_help=False)
-    parser.add_argument('img_path', default= 'results/' , type=str, help='input image path')
-    parser.add_argument('save_path', default= 'results/' , type=str, help='save image path' )
-    parser.add_argument('model_path', default= 'results/' , type=str, help='checkpoint path of model' )
+    parser.add_argument('--img_path', default= 'results/' , type=str, help='input image path')
+    parser.add_argument('--save_path', default= 'results/' , type=str, help='save image path' )
+    parser.add_argument('--model_path', default= 'results/' , type=str, help='checkpoint path of model' )
 
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size for backbone')
-    parser.add_argument('--device', default='cuda:0',
+    parser.add_argument('--device', default='cpu',
                         help='device to use for training / testing')
     parser.add_argument('--imagenet_default_mean_and_std', default=True, action='store_true')
     parser.add_argument('--mask_ratio', default=0.75, type=float,
