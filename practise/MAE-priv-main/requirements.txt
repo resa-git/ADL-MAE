@@ -1,0 +1,7 @@
+apex
+deepspeed
+einops
+numpy
+Pillow
+PyYAML
+wandb
