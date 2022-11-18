@@ -37,7 +37,7 @@ from engine_pretrain import train_one_epoch
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
-    parser.add_argument('--batch_size', default=4, type=int,
+    parser.add_argument('--batch_size', default=32, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=400, type=int)
     parser.add_argument('--accum_iter', default=1, type=int,
@@ -72,7 +72,7 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='tiny-imagenet-200/', type=str,
+    parser.add_argument('--data_path', default='../mae-main/tiny-imagenet-200/', type=str,
                         help='dataset path')
 
     parser.add_argument('--output_dir', default='./output_dir',
@@ -92,7 +92,7 @@ def get_args_parser():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
     parser.set_defaults(pin_mem=True)
-
+    
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
@@ -100,12 +100,12 @@ def get_args_parser():
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
-
+    parser.add_argument('--distributed', default=False, help='distributed trainig')
     return parser
 
 
 def main(args):
-    misc.init_distributed_mode(args)
+    #misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
     print("{}".format(args).replace(', ', ',\n'))
@@ -128,7 +128,7 @@ def main(args):
     dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
 
-    if True:  # args.distributed:
+    if args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
@@ -137,6 +137,7 @@ def main(args):
         print("Sampler_train = %s" % str(sampler_train))
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
+        global_rank = 0
 
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
