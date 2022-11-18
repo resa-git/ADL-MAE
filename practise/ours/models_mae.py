@@ -126,7 +126,7 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward_loss(self, imgs, pred, mask):
         b, c, H, W = imgs.shape
-        p = self.patch_embed.patch_size[0]
+        p = int(self.en_patch_embed.patch_size[0])
         x = imgs.view(b, c, H // p, p, W // p, p)
         x = torch.einsum('nchpwq->nhwpqc', x)
         x = x.reshape(shape=(b, H*W // p**2, p**2 * 3))
@@ -134,11 +134,11 @@ class MaskedAutoencoderViT(nn.Module):
         loss = F.mse_loss(x, y) # no mask is here
         return loss
 
-    def forward(self, x, mask_ratio=0.75):
-        x = self.en_forward(x)
+    def forward(self, imgs, mask_ratio=0.75):
+        x = self.en_forward(imgs)
         pred = self.dc_forward(x)
         mask = None
-        loss = self.forward_loss(x, pred, mask)
+        loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
