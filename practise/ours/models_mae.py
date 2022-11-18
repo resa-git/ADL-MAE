@@ -85,20 +85,22 @@ class MaskedAutoencoderViT(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, nn.LayerNorm):
-            nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+            nn.init.constant_(m.bias, 0)
+            
             
     def patchify(self, imgs):
         pass
 
     def unpatchify(self, x):
         pass
+    
     def random_masking(self, x, mask_ratio):
         pass
 
     def en_forward(self, x):
         x = self.en_patch_embed(x)
-        x = x + self.en_pos_embed[:, 1:, :]
+        #x = x + self.en_pos_embed[:, 1:, :]
         #--------- masking --
         #--------------------
         #cls_token = self.en_cls_token + self.en_pos_embed[:, 0, :]
@@ -110,7 +112,7 @@ class MaskedAutoencoderViT(nn.Module):
         x = x + self.en_pos_embed  
         for block in self.en_blocks:
             x = block(x)
-        x = self.en_norm(x)
+        x = self.en_norm(x)        
         return x
     
     def dc_forward(self, x):
@@ -130,7 +132,7 @@ class MaskedAutoencoderViT(nn.Module):
         x = imgs.view(b, c, H // p, p, W // p, p)
         x = torch.einsum('nchpwq->nhwpqc', x)
         x = x.reshape(shape=(b, H*W // p**2, p**2 * 3))
-        y = pred
+        y = pred # B, 196 * 512
         loss = F.mse_loss(x, y) # no mask is here
         return loss
 
