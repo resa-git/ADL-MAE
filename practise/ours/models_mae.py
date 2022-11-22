@@ -24,7 +24,7 @@ class MaskedAutoencoderViT(nn.Module):
     """
     def __init__(self, img_size = 224, patch_size=16, en_embed_dim=768, en_depth=12, en_num_heads=12,
         dc_embed_dim=512, dc_depth=8, dc_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), in_chans = 3, norm_pix_loss=False):
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), in_chans = 3, norm_pix_loss=False, mask_ratio= 0.75):
         super().__init__()
         # ===================================================================
         embed_dim = en_embed_dim
@@ -45,6 +45,9 @@ class MaskedAutoencoderViT(nn.Module):
         # ------------------------------ normal layer --------------
         self.en_norm = norm_layer(embed_dim)
         # ------------------------------ head --------------
+        #========================= masking =====================================
+        self.Nmask = int(mask_ratio * num_patches)# Number of mmasked patches
+        self.Nvis = num_patches - self.Nmask # Number of visible patches
         # ===================================================================
         self.dc_embed = nn.Linear(in_features = en_embed_dim, out_features = dc_embed_dim, bias=True)
         # ===================================================================
@@ -54,8 +57,8 @@ class MaskedAutoencoderViT(nn.Module):
         self.num_classes = patch_size**2 * in_chans
         depth = dc_depth
         # ------------------------------ class token ---------------
-        self.dc_cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        torch.nn.init.normal_(self.dc_cls_token, std=.02)
+        self.dc_mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        torch.nn.init.normal_(self.dc_mask_token, std=.02)
         # ------------------------------ Positional embed ----------
         self.dc_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
         # ------------------------------ Encoder --- ---------------
@@ -93,31 +96,31 @@ class MaskedAutoencoderViT(nn.Module):
         pass
 
     def unpatchify(self, x):
-        pass
-    
+        """
+        x: (N, L, patch_size**2 *3)
+        imgs: (N, 3, H, W)
+        """
+        p = self.patch_embed.patch_size[0]
+        h = w = int(x.shape[1]**.5)
+        assert h * w == x.shape[1]
+        
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = torch.einsum('nhwpqc->nchpwq', x)
+        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        return imgs
+
     def random_masking(self, x, mask_ratio):
         pass
 
     def en_forward(self, x):
-        x = self.en_patch_embed(x)
-        #x = x + self.en_pos_embed[:, 1:, :]
-        #--------- masking --
-        #--------------------
-        #cls_token = self.en_cls_token + self.en_pos_embed[:, 0, :]
-        #cls_tokens = cls_token.expand(x.shape[0], -1, -1)
-        #x = torch.cat((cls_tokens, x), dim=1)
-        #------- alternatinve ---
         cls_tokens = self.en_cls_token.expand(x.shape[0], -1, -1)  
         x = torch.cat((cls_tokens, x), dim=1)
-        x = x + self.en_pos_embed  
         for block in self.en_blocks:
             x = block(x)
         x = self.en_norm(x)        
         return x
     
     def dc_forward(self, x):
-        x = self.dc_embed(x)
-        #---------- masking 
         #---------
         x = x + self.dc_pos_embed 
         for block in self.dc_blocks:
@@ -133,15 +136,39 @@ class MaskedAutoencoderViT(nn.Module):
         x = torch.einsum('nchpwq->nhwpqc', x)
         x = x.reshape(shape=(b, H*W // p**2, p**2 * 3))
         y = pred # B, 196 * 512
-        loss = F.mse_loss(x, y) # no mask is here
+        
+        mask = mask.unsqueeze(-1).expand(-1, -1, x.shape[-1])
+        x = x.gather(1, mask)
+        y = y.gather(1, mask)
+        
+        loss = F.mse_loss(x, y) 
+
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
-        x = self.en_forward(imgs)
+        b = imgs.shape[0]
+        p = self.en_patch_embed.num_patches
+        index = torch.rand(b, p).argsort(1).to(imgs.device)
+        visInd = index[:, :self.Nvis]
+        x = self.en_patch_embed(imgs)
+        x = x + self.en_pos_embed[:, 1:, :]
+        xVis= x.gather(1, visInd.unsqueeze(-1).expand(-1, -1, x.shape[-1]))
+        #------------- encoder --------------
+        xVis = self.en_forward(xVis)
+        #--------- en to dc -----------------
+        xVis = self.dc_embed(xVis)
+        #------------- prepare --------------
+        dc_cls_token = xVis[:,:1,:]
+        
+        xMasked = self.dc_mask_token.expand(b, self.Nmask, -1)
+        xVis = xVis[:,1:,:]
+        x_ = torch.cat((xVis, xMasked), dim=1)
+        x_ = x_.gather(1, index.argsort(1).unsqueeze(-1).expand(-1, -1, xVis.shape[-1]))
+        x = torch.cat([dc_cls_token, x_], dim=1)
+        #------------- decoder --------------
         pred = self.dc_forward(x)
-        mask = None
-        loss = self.forward_loss(imgs, pred, mask)
-        return loss, pred, mask
+        loss = self.forward_loss(imgs, pred, mask=visInd)
+        return loss, pred, visInd
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(

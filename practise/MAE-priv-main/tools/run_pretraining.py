@@ -36,7 +36,7 @@ def get_args():
                         help='YAML config file specifying default arguments')
 
     parser = argparse.ArgumentParser('MAE pre-training script', add_help=False)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--save_ckpt_freq', default=20, type=int)
 
@@ -100,7 +100,7 @@ def get_args():
                         help='Training interpolation (random, bilinear, bicubic default: "bicubic")')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/train', type=str,
+    parser.add_argument('--data_path', default='../mae-main/tiny-imagenet-200/train', type=str,
                         help='dataset path')
     parser.add_argument('--imagenet_inception_mean_and_std', action='store_true')
 
@@ -109,7 +109,7 @@ def get_args():
     parser.add_argument('--log_wandb', action='store_true',
                         help='log training and validation metrics to wandb')
     parser.add_argument('--no_log_wandb', action='store_false', dest='log_wandb')
-    parser.set_defaults(log_wandb=True)
+    parser.set_defaults(log_wandb=False)
 
     parser.add_argument('--wandb_project', default=None, type=str,
                         help='log training and validation metrics to wandb')
