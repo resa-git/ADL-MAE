@@ -22,8 +22,8 @@ from util.pos_embed import get_2d_sincos_pos_embed
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size = 224, patch_size=16, en_embed_dim=768, en_depth=12, en_num_heads=12,
-        dc_embed_dim=512, dc_depth=8, dc_num_heads=16,
+    def __init__(self, input_size = 224, patch_size=16, en_embed_dim=768, en_depth=1, en_num_heads=12,
+        dc_embed_dim=512, dc_depth=1, dc_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), in_chans = 3, norm_pix_loss=False, mask_ratio= 0.75):
         super().__init__()
         # ===================================================================
@@ -31,7 +31,7 @@ class MaskedAutoencoderViT(nn.Module):
         depth = en_depth
         num_heads = en_num_heads
         # ------------------------------ PatchEmbed ---------------
-        self.en_patch_embed = PatchEmbed(img_size, patch_size, in_chans = in_chans, embed_dim = embed_dim) 
+        self.en_patch_embed = PatchEmbed(input_size, patch_size, in_chans = in_chans, embed_dim = embed_dim) 
         num_patches = self.en_patch_embed.num_patches
         # ------------------------------ class token ---------------
         self.en_cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
@@ -171,8 +171,8 @@ class MaskedAutoencoderViT(nn.Module):
         return loss, pred, visInd
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
-    model = MaskedAutoencoderViT(
-        patch_size=16, en_embed_dim=768, en_depth=12, en_num_heads=12,
+    model = MaskedAutoencoderViT(input_size=64,
+        patch_size=4, en_embed_dim=768, en_depth=12, en_num_heads=12,
         dc_embed_dim=512, dc_depth=8, dc_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),  **kwargs)
 
