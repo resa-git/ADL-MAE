@@ -10,5 +10,5 @@ __pycache__
 *.yaml
 .ipynb_checkpoints/
 practise/mae-main/tiny-imagenet-200/
-output_dir/
+output_dir*/
  
