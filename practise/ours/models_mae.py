@@ -22,34 +22,34 @@ from util.pos_embed import get_2d_sincos_pos_embed
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, input_size = 224, patch_size=16, en_embed_dim=768, en_depth=1, en_num_heads=12,
+    def __init__(self, input_size = 224, patch_size=16, embed_dim=768, depth=1, num_heads=12,
         dc_embed_dim=512, dc_depth=1, dc_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), in_chans = 3, norm_pix_loss=False, mask_ratio= 0.75):
         super().__init__()
         # ===================================================================
-        embed_dim = en_embed_dim
-        depth = en_depth
-        num_heads = en_num_heads
+        embed_dim = embed_dim
+        depth = depth
+        num_heads = num_heads
         # ------------------------------ PatchEmbed ---------------
-        self.en_patch_embed = PatchEmbed(input_size, patch_size, in_chans = in_chans, embed_dim = embed_dim) 
-        num_patches = self.en_patch_embed.num_patches
+        self.patch_embed = PatchEmbed(input_size, patch_size, in_chans = in_chans, embed_dim = embed_dim) 
+        num_patches = self.patch_embed.num_patches
         # ------------------------------ class token ---------------
-        self.en_cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        torch.nn.init.normal_(self.en_cls_token, std=.02)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        torch.nn.init.normal_(self.cls_token, std=.02)
         # ------------------------------ Positional embed ----------
-        self.en_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
         # ------------------------------ Encoder --- ---------------
-        self.en_blocks = nn.ModuleList([
+        self.blocks = nn.ModuleList([
             Block(dim = embed_dim, num_heads = num_heads, mlp_ratio = mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer)
             for i in range(depth)])
         # ------------------------------ normal layer --------------
-        self.en_norm = norm_layer(embed_dim)
+        self.norm = norm_layer(embed_dim)
         # ------------------------------ head --------------
         #========================= masking =====================================
         self.Nmask = int(mask_ratio * num_patches)# Number of mmasked patches
         self.Nvis = num_patches - self.Nmask # Number of visible patches
         # ===================================================================
-        self.dc_embed = nn.Linear(in_features = en_embed_dim, out_features = dc_embed_dim, bias=True)
+        self.dc_embed = nn.Linear(in_features = embed_dim, out_features = dc_embed_dim, bias=True)
         # ===================================================================
         embed_dim = dc_embed_dim
         depth = dc_depth
@@ -73,14 +73,14 @@ class MaskedAutoencoderViT(nn.Module):
         self.init()
         
     def init(self):
-        en_pos_embed = get_2d_sincos_pos_embed(self.en_pos_embed.shape[-1], int(self.en_patch_embed.num_patches**.5), cls_token=True)
-        self.en_pos_embed.data.copy_(torch.from_numpy(en_pos_embed).float().unsqueeze(0))
-        dc_pos_embed = get_2d_sincos_pos_embed(self.dc_pos_embed.shape[-1], int(self.en_patch_embed.num_patches**.5), cls_token=True)
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        dc_pos_embed = get_2d_sincos_pos_embed(self.dc_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
         self.dc_pos_embed.data.copy_(torch.from_numpy(dc_pos_embed).float().unsqueeze(0))     
         ####### do we need to initialise conv_2d in PatchEmbed
         self.apply(self._init_weights)
         
-        #self.en_pos_embed = build_2d_sincos_position_embedding(*self.en_pos_embed.shape, self.en_pos_embed.shape[-1])
+        #self.pos_embed = build_2d_sincos_position_embedding(*self.pos_embed.shape, self.pos_embed.shape[-1])
     
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -113,11 +113,11 @@ class MaskedAutoencoderViT(nn.Module):
         pass
 
     def en_forward(self, x):
-        cls_tokens = self.en_cls_token.expand(x.shape[0], -1, -1)  
+        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)  
         x = torch.cat((cls_tokens, x), dim=1)
-        for block in self.en_blocks:
+        for block in self.blocks:
             x = block(x)
-        x = self.en_norm(x)        
+        x = self.norm(x)        
         return x
     
     def dc_forward(self, x):
@@ -131,7 +131,7 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward_loss(self, imgs, pred, mask):
         b, c, H, W = imgs.shape
-        p = int(self.en_patch_embed.patch_size[0])
+        p = int(self.patch_embed.patch_size[0])
         x = imgs.view(b, c, H // p, p, W // p, p)
         x = torch.einsum('nchpwq->nhwpqc', x)
         x = x.reshape(shape=(b, H*W // p**2, p**2 * 3))
@@ -147,11 +147,11 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward(self, imgs, mask_ratio=0.75):
         b = imgs.shape[0]
-        p = self.en_patch_embed.num_patches
+        p = self.patch_embed.num_patches
         index = torch.rand(b, p).argsort(1).to(imgs.device)
         visInd = index[:, :self.Nvis]
-        x = self.en_patch_embed(imgs)
-        x = x + self.en_pos_embed[:, 1:, :]
+        x = self.patch_embed(imgs)
+        x = x + self.pos_embed[:, 1:, :]
         xVis= x.gather(1, visInd.unsqueeze(-1).expand(-1, -1, x.shape[-1]))
         #------------- encoder --------------
         xVis = self.en_forward(xVis)
@@ -172,7 +172,7 @@ class MaskedAutoencoderViT(nn.Module):
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(input_size=64,
-        patch_size=4, en_embed_dim=768, en_depth=1, en_num_heads=12,
+        patch_size=4, embed_dim=768, depth=12, num_heads=12,
         dc_embed_dim=512, dc_depth=1, dc_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),  **kwargs)
 
