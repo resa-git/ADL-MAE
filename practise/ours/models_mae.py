@@ -17,8 +17,8 @@ import torch.nn.functional as F
 from timm.models.vision_transformer import PatchEmbed, Block
 
 from util.pos_embed import get_2d_sincos_pos_embed
-
-
+import matplotlib.pyplot as plt
+import numpy as np
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
@@ -91,7 +91,10 @@ class MaskedAutoencoderViT(nn.Module):
             nn.init.constant_(m.weight, 1.0)
             nn.init.constant_(m.bias, 0)
             
-            
+    def show(self, img):
+        npimg = img.numpy()
+        plt.imshow(np.transpose(npimg, (1, 2, 0)), interpolation='nearest')      
+
     def patchify(self, imgs):
         pass
 
@@ -171,8 +174,8 @@ class MaskedAutoencoderViT(nn.Module):
         return loss, pred, visInd
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
-    model = MaskedAutoencoderViT(input_size=64,
-        patch_size=4, embed_dim=768, depth=12, num_heads=12,
+    model = MaskedAutoencoderViT(input_size=224,
+        patch_size=14, embed_dim=768, depth=12, num_heads=12,
         dc_embed_dim=512, dc_depth=1, dc_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6),  **kwargs)
 
