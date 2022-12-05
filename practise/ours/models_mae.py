@@ -194,7 +194,7 @@ class MaskedAutoencoderViT(nn.Module):
         #------------- decoder --------------
         pred = self.dc_forward(x)
         #loss = self.forward_loss(imgs, pred, mask=visInd)
-        loss = self.forward_loss2(imgs, pred, mask= restore)
+        loss = self.forward_loss2(imgs, pred, restore= restore)
         
         return loss, pred, visInd
 

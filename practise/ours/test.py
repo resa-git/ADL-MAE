@@ -23,15 +23,20 @@ self.show(imgs[1].detach().cpu())
 
 
 ############ test the mask
-mask0 = mask.clone()
-mask1 = torch.ones([b, p**2*3], device=x.device)
-mask1[:, :49] = 0
+mask0 = mask2.clone()
+mask10 = torch.ones([b, p**2*3], device=x.device)
+mask10[:, :self.Nvis] = 0
 # unshuffle to get the binary mask
-mask2 = torch.gather(mask1, dim=1, index=mask0)
+mask10 = torch.gather(mask10, dim=1, index=mask0)
 loss0 = (x - y) ** 2
 loss0 = loss0.mean(dim=-1)  # [N, L], mean loss per patch
-loss0 = (loss0 * mask0).sum() / mask0.sum() 
+loss0 = (loss0 * mask10).sum() / mask10.sum() 
 
+#################
+x1 = x.gather(1, mask)
+y1 = y.gather(1, mask)
+
+loss = F.mse_loss(x1, y1) 
 
 
 
