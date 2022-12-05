@@ -22,8 +22,15 @@ loss, y, _ = model(samples, mask_ratio=args.mask_ratio)
 self.show(imgs[1].detach().cpu())
 
 
-
-
+############ test the mask
+mask0 = mask.clone()
+mask1 = torch.ones([b, p**2*3], device=x.device)
+mask1[:, :49] = 0
+# unshuffle to get the binary mask
+mask2 = torch.gather(mask1, dim=1, index=mask0)
+loss0 = (x - y) ** 2
+loss0 = loss0.mean(dim=-1)  # [N, L], mean loss per patch
+loss0 = (loss0 * mask0).sum() / mask0.sum() 
 
 
 
