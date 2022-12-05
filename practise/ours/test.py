@@ -19,7 +19,7 @@ loss, y, _ = model(samples, mask_ratio=args.mask_ratio)
 
 
 
-
+self.show(imgs[1].detach().cpu())
 
 
 
